@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDF Text Cleaner — City of Pasadena</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    min-height: 100vh;
+    background: #f5f0e8;
+    font-family: 'Georgia', 'Times New Roman', serif;
+    padding: 40px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ── Header ── */
+  .header { text-align: center; margin-bottom: 36px; }
+  .header-badge {
+    display: inline-block;
+    background: #1a1a2e;
+    color: #c9a84c;
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    padding: 6px 16px;
+    margin-bottom: 14px;
+  }
+  .header h1 {
+    font-size: clamp(26px, 5vw, 36px);
+    font-weight: normal;
+    color: #1a1a2e;
+    margin: 0 0 8px 0;
+    letter-spacing: -0.5px;
+  }
+  .header p {
+    color: #6b6b6b;
+    font-size: 15px;
+    font-style: italic;
+  }
+
+  /* ── Card ── */
+  .card {
+    width: 100%;
+    max-width: 780px;
+    background: #ffffff;
+    border: 1px solid #d4c9b0;
+    box-shadow: 4px 4px 0px #1a1a2e;
+    padding: 32px;
+  }
+
+  /* ── Labels ── */
+  .field-label {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #1a1a2e;
+    margin-bottom: 8px;
+  }
+
+  /* ── Textarea ── */
+  textarea {
+    width: 100%;
+    height: 180px;
+    padding: 14px;
+    font-size: 14px;
+    font-family: 'Georgia', serif;
+    border: 1px solid #d4c9b0;
+    background: #faf8f4;
+    color: #1a1a2e;
+    resize: vertical;
+    outline: none;
+    line-height: 1.6;
+  }
+  textarea:focus { border-color: #1a1a2e; }
+
+  /* ── Fix button ── */
+  #fix-btn {
+    margin-top: 16px;
+    width: 100%;
+    padding: 14px;
+    background: #1a1a2e;
+    color: #c9a84c;
+    border: none;
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-family: 'Georgia', serif;
+    transition: background 0.2s, color 0.2s;
+  }
+  #fix-btn:hover:not(:disabled) { background: #2d2d4e; }
+  #fix-btn:disabled {
+    background: #a0a0a0;
+    color: #d0d0d0;
+    cursor: not-allowed;
+  }
+
+  /* ── Output section ── */
+  #output-section { display: none; margin-top: 28px; }
+
+  .output-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .copy-btn {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 5px 12px;
+    cursor: pointer;
+    font-family: 'Georgia', serif;
+    white-space: nowrap;
+    transition: opacity 0.15s;
+    border: none;
+  }
+  .copy-btn:hover { opacity: 0.85; }
+  .btn-plain  { background: none; border: 1px solid #1a1a2e !important; color: #1a1a2e; }
+  .btn-rich   { background: #1a1a2e; color: #c9a84c; }
+  .btn-html   { background: #c9a84c; color: #1a1a2e; }
+
+  .output-box {
+    background: #faf8f4;
+    border: 1px solid #d4c9b0;
+    padding: 18px;
+    font-size: 14px;
+    line-height: 1.8;
+    color: #1a1a2e;
+    white-space: pre-wrap;
+    font-family: 'Georgia', serif;
+    word-break: break-word;
+  }
+  .output-box a { color: #c9a84c; text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-badge">Utility Tool</div>
+  <h1>PDF Text Cleaner</h1>
+  <p>Paste messy PDF text — get clean, properly formatted text back.</p>
+</div>
+
+<!-- Card -->
+<div class="card">
+
+  <label class="field-label">Paste Your Text</label>
+  <textarea id="input-text" placeholder="Paste PDF text here..."></textarea>
+
+  <button id="fix-btn" onclick="handleFix()">Fix Formatting</button>
+
+  <!-- Output -->
+  <div id="output-section">
+    <div class="output-header">
+      <span class="field-label" style="margin:0">Cleaned Text</span>
+      <div class="btn-row">
+        <button class="copy-btn btn-plain"  id="btn-plain"  onclick="handleCopyPlain()">Copy Plain Text</button>
+        <button class="copy-btn btn-rich"   id="btn-rich"   onclick="handleCopyRich()">Copy Rich Text</button>
+        <button class="copy-btn btn-html"   id="btn-html"   onclick="handleCopyHtml()">Copy HTML</button>
+      </div>
+    </div>
+    <div class="output-box" id="output-box"></div>
+  </div>
+
+</div>
+
+<script>
+// ── Proxy config (no API key here — lives on the server) ──────────────
+const PROXY_URL = "https://lemon-sky-062ee101e.2.azurestaticapps.net/api/chat";
+// ─────────────────────────────────────────────────────────────────────
+
+const SYSTEM_PROMPT = `You are a text formatting assistant. The user will paste text that was copied from a PDF, which often has broken line wraps, missing paragraph breaks, and addresses/lists run together in a single line. Your job is to reformat it into clean, properly structured text with correct paragraphs, line breaks, and spacing — exactly as it would have appeared in the original document. Return only the cleaned text with no commentary, explanations, or preamble.`;
+
+const LINK_REGEX = /(https?:\/\/[^\s]+)|([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/g;
+
+let cleanedText = "";
+
+async function handleFix() {
+  const input = document.getElementById("input-text").value.trim();
+  if (!input) return;
+
+  const btn = document.getElementById("fix-btn");
+  btn.disabled = true;
+  btn.textContent = "Fixing...";
+  document.getElementById("output-section").style.display = "none";
+  cleanedText = "";
+
+  try {
+    const response = await fetch(PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1000,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: "user", content: input }]
+      })
+    });
+
+    const data = await response.json();
+    cleanedText = data.content?.map(b => b.text || "").join("") || "";
+
+    if (!cleanedText) {
+      cleanedText = "Something went wrong. Please try again.";
+    }
+
+    renderOutput(cleanedText);
+    document.getElementById("output-section").style.display = "block";
+
+  } catch (e) {
+    cleanedText = "Something went wrong. Please try again.";
+    renderOutput(cleanedText);
+    document.getElementById("output-section").style.display = "block";
+  }
+
+  btn.disabled = false;
+  btn.textContent = "Fix Formatting";
+}
+
+// ── Render output with clickable links ────────────────────────────────
+function renderOutput(text) {
+  const box = document.getElementById("output-box");
+  box.innerHTML = "";
+
+  const lines = text.split("\n");
+  lines.forEach((line, i) => {
+    const span = document.createElement("span");
+    let last = 0;
+    let match;
+    const regex = new RegExp(LINK_REGEX.source, "g");
+
+    while ((match = regex.exec(line)) !== null) {
+      if (match.index > last) {
+        span.appendChild(document.createTextNode(line.slice(last, match.index)));
+      }
+      const val = match[0];
+      const a = document.createElement("a");
+      a.textContent = val;
+      if (val.startsWith("http")) {
+        a.href = val;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+      } else {
+        a.href = "mailto:" + val;
+      }
+      span.appendChild(a);
+      last = match.index + val.length;
+    }
+    if (last < line.length) {
+      span.appendChild(document.createTextNode(line.slice(last)));
+    }
+    box.appendChild(span);
+    if (i < lines.length - 1) box.appendChild(document.createTextNode("\n"));
+  });
+}
+
+// ── Build HTML string for copy ────────────────────────────────────────
+function buildHtml() {
+  const regex = new RegExp(LINK_REGEX.source, "g");
+  return cleanedText.split("\n").map(line => {
+    let result = "";
+    let last = 0;
+    let match;
+    while ((match = regex.exec(line)) !== null) {
+      result += escapeHtml(line.slice(last, match.index));
+      const val = match[0];
+      if (val.startsWith("http")) {
+        result += `<a href="${val}" target="_blank" rel="noopener noreferrer">${val}</a>`;
+      } else {
+        result += `<a href="mailto:${val}">${val}</a>`;
+      }
+      last = match.index + val.length;
+    }
+    result += escapeHtml(line.slice(last));
+    return result;
+  }).join("<br>\n");
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// ── Copy handlers ─────────────────────────────────────────────────────
+function copyText(text, btnId, label) {
+  try {
+    const el = document.createElement("textarea");
+    el.value = text;
+    el.style.cssText = "position:fixed;top:0;left:0;opacity:0;";
+    document.body.appendChild(el);
+    el.focus(); el.select();
+    document.execCommand("copy");
+    document.body.removeChild(el);
+    flashBtn(btnId, "Copied!", label);
+  } catch(e) {
+    navigator.clipboard?.writeText(text).then(() => flashBtn(btnId, "Copied!", label));
+  }
+}
+
+function handleCopyPlain() {
+  if (!cleanedText) return;
+  copyText(cleanedText, "btn-plain", "Copy Plain Text");
+}
+
+function handleCopyHtml() {
+  if (!cleanedText) return;
+  copyText(buildHtml(), "btn-html", "Copy HTML");
+}
+
+function handleCopyRich() {
+  if (!cleanedText) return;
+  const html = buildHtml();
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  div.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none;";
+  document.body.appendChild(div);
+  const range = document.createRange();
+  range.selectNodeContents(div);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  try {
+    document.execCommand("copy");
+    flashBtn("btn-rich", "Copied!", "Copy Rich Text");
+  } catch(e) {
+    copyText(html, "btn-rich", "Copy Rich Text");
+  }
+  sel.removeAllRanges();
+  document.body.removeChild(div);
+}
+
+function flashBtn(id, msg, original) {
+  const btn = document.getElementById(id);
+  btn.textContent = msg;
+  setTimeout(() => btn.textContent = original, 2000);
+}
+
+// ── Enable/disable fix button based on input ──────────────────────────
+document.getElementById("input-text").addEventListener("input", function() {
+  document.getElementById("fix-btn").disabled = !this.value.trim();
+});
+document.getElementById("fix-btn").disabled = true;
+</script>
+</body>
+</html>
