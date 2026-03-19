@@ -209,6 +209,16 @@ async function handleFix() {
       })
     });
 
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      cleanedText = `Error ${response.status}: ${errData.error?.message || response.statusText}`;
+      renderOutput(cleanedText);
+      document.getElementById("output-section").style.display = "block";
+      btn.disabled = false;
+      btn.textContent = "Fix Formatting";
+      return;
+    }
+
     const data = await response.json();
     cleanedText = data.content?.map(b => b.text || "").join("") || "";
 
@@ -220,7 +230,7 @@ async function handleFix() {
     document.getElementById("output-section").style.display = "block";
 
   } catch (e) {
-    cleanedText = "Something went wrong. Please try again.";
+    cleanedText = `Network error: ${e.message} — Check browser console for details.`;
     renderOutput(cleanedText);
     document.getElementById("output-section").style.display = "block";
   }
